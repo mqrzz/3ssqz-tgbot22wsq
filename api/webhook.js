@@ -8,6 +8,16 @@ function statusLabel(st) {
   return STATUS_LABELS[st ?? 0] ?? '—';
 }
 
+// Ссылка на кабинет — если структура путей поменяется, поправить здесь и всё.
+const CABINET_ORDERS_URL = 'https://antviz.ru/profile/orders.html';
+
+// Кнопка "Открыть приложение", которую можно приклеить к любому сообщению.
+// web_app-кнопки открывают сайт внутри Telegram (Mini App) — регистрировать
+// через BotFather для этого не нужно, достаточно HTTPS-ссылки.
+function appButton(text = '📋 Открыть заказы в приложении') {
+  return { inline_keyboard: [[{ text, web_app: { url: CABINET_ORDERS_URL } }]] };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(200).send('ok');
 
@@ -31,7 +41,8 @@ export default async function handler(req, res) {
       if (!token) {
         await sendMessage(chatId,
           'Привет! Это бот Antviz — сюда приходят уведомления по вашим заказам и статус.\n\n' +
-          'Чтобы привязать аккаунт, зайдите в личный кабинет → Настройки → «Привязать Telegram».'
+          'Чтобы привязать аккаунт, зайдите в личный кабинет → Настройки → «Привязать Telegram».\n\n' +
+          'Команды: /status — статус заказов, /app — открыть кабинет, /help — все команды.'
         );
         return res.status(200).send('ok');
       }
@@ -44,7 +55,19 @@ export default async function handler(req, res) {
       return;
     }
 
-    await sendMessage(chatId, 'Доступные команды:\n/status — статус ваших заказов');
+    if (text === '/app') {
+      await sendMessage(chatId, 'Открыть кабинет:', { reply_markup: appButton('🚀 Войти в приложение') });
+      return res.status(200).send('ok');
+    }
+
+    if (text === '/help') {
+      await sendMessage(chatId,
+        'Команды:\n/status — статус ваших заказов\n/app — открыть кабинет в приложении\n/help — этот список'
+      );
+      return res.status(200).send('ok');
+    }
+
+    await sendMessage(chatId, 'Не понял команду. Список команд — /help');
     res.status(200).send('ok');
   } catch (e) {
     console.error('webhook error', e);
@@ -74,7 +97,8 @@ async function handleLink(db, chatId, token, username, res) {
   await tokenRef.delete();
 
   await sendMessage(chatId,
-    '✅ Аккаунт привязан. Теперь сюда будут приходить уведомления по заказу, и можно спросить /status в любой момент.'
+    '✅ Аккаунт привязан. Теперь сюда будут приходить уведомления по заказу, и можно спросить /status в любой момент.',
+    { reply_markup: appButton() }
   );
   res.status(200).send('ok');
 }
@@ -94,7 +118,7 @@ async function handleStatus(db, chatId, res) {
     .get();
 
   if (ordersSnap.empty) {
-    await sendMessage(chatId, 'Заказов пока нет.');
+    await sendMessage(chatId, 'Заказов пока нет.', { reply_markup: appButton('🚀 Открыть кабинет') });
     return res.status(200).send('ok');
   }
 
@@ -104,6 +128,6 @@ async function handleStatus(db, chatId, res) {
     return `№${num} — ${o.package || o.siteType || 'заказ'}\nСтатус: <b>${statusLabel(o.status)}</b>`;
   });
 
-  await sendMessage(chatId, lines.join('\n\n'));
+  await sendMessage(chatId, lines.join('\n\n'), { reply_markup: appButton() });
   res.status(200).send('ok');
 }
