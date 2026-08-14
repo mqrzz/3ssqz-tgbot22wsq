@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     return res.status(401).send('unauthorized');
   }
 
-  const { uid, text } = req.body || {};
+  const { uid, text, buttonText, buttonUrl } = req.body || {};
   if (!uid || !text) return res.status(400).send('uid и text обязательны');
 
   try {
@@ -37,7 +37,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ sent: false, reason: 'not_linked' });
     }
 
-    await sendMessage(tgChatId, text);
+    const extra = (buttonText && buttonUrl)
+      ? { reply_markup: { inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] } }
+      : {};
+    await sendMessage(tgChatId, text, extra);
     res.status(200).json({ sent: true });
   } catch (e) {
     console.error('notify error', e);
